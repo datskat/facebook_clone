@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from utils.models import Post
+from utils.database import Base
+
 
 app = FastAPI()
 
