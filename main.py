@@ -1,30 +1,64 @@
-from turtle import title
-from fastapi import FastAPI
-from sqlalchemy import Column, Integer, String
-from utils.models import Post
-from utils.database import Base
-
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
+from utils.database import engine, SessionLocal, Base
+from utils.models import Post, Post_db
 
 app = FastAPI()
 
-class Post_db(Base):
+Base.metadata.create_all(bind=engine) #Creating db and table
 
-    __tablename__ = 'posts'
+def get_db():#Spróbować context manager
 
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String)
-    content = Column(String)
+    try:
+
+        db = SessionLocal()
+        yield db
+
+    finally:
+
+        db.close()
     
-
 @app.get('/')
-async def root():
+async def root(db: Session=Depends(get_db)):
 
-    return {'API': 'created'}
+    return db.query(Post_db).all()
 
 
 @app.post('/createpost')
-async def create_post(post: Post):
+async def create_post(post: Post, db: Session=Depends(get_db)):
+
+    post_model = Post_db()
+    post_model.title = post.title
+    post_model.content = post.content
+
+    db.add(post_model)
+    db.commit()
 
     print(f'Created post with title: {post.title}')
     print(f'Content of the post: {post.content}')
+
     return post
+
+@app.put('/{post_id}')
+async def update_post(post_id: int, post: Post, db: Session=Depends(get_db)):
+
+    post_to_update = db.query(Post_db).filter(Post_db.id==post_id).first()
+
+    if post_to_update:
+
+        post_to_update.title = post.title
+        post_to_update.content = post.content
+
+        db.add(post_to_update)
+        db.commit()
+
+        return post_to_update
+
+    else:
+
+        raise HTTPException(
+            status_code=404,
+            detail=f'Post with ID {post_id} does not exist')
+    
+
+    
